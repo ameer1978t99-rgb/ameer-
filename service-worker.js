@@ -4,8 +4,8 @@
 // ============================================================
 
 // ⚠️ مهم جداً: غيّر هذا الرقم عند كل تحديث جديد
-const CACHE_NAME = 'rasd-app-v5.8.0';
-const CACHE_VERSION = '5.8.0';
+const CACHE_NAME = 'rasd-app-v5.0.0';
+const CACHE_VERSION = '5.0.0';
 
 // الملفات التي سيتم تخزينها مؤقتاً للعمل بدون إنترنت
 const STATIC_ASSETS = [
