@@ -1849,10 +1849,10 @@ body.light-mode #summarySchoolType {
   <span class="exam-card-icon">✋</span>
   <span>الغياب</span>
 </button>
-    <button class="exam-card" onclick="showToast('🚧 قيد التطوير')">
-      <span class="exam-card-icon">📄</span>
-      <span>محاضر ورقية</span>
-    </button>
+    <button class="exam-card" onclick="showPage('page-paper-records')">
+  <span class="exam-card-icon">📄</span>
+  <span>محاضر ورقية</span>
+</button>
   </div>
   
   <button class="btn btn-outline btn-sm" onclick="showPage('page-main')">🔙 العودة</button>
@@ -1899,6 +1899,43 @@ body.light-mode #summarySchoolType {
 
   <!-- زر الإضافة -->
   <button class="exam-fab" onclick="openAddHallModal()">+</button>
+</div>
+<!-- ═══════════════ PAPER RECORDS ═══════════════ -->
+<div class="page" id="page-paper-records">
+  <div class="exam-schedule-header">
+    <button onclick="showPage('page-exams')">‹</button>
+    <div class="exam-schedule-title">محاضر ورقية</div>
+    <div style="width:40px;"></div>
+  </div>
+
+  <div id="paperRecordsList" class="abs-list-container"></div>
+
+  <button class="exam-fab" onclick="openPaperRecordModal()">+</button>
+</div>
+
+<!-- نافذة إضافة محضر -->
+<div class="modal-overlay" id="addPaperRecordModal">
+  <div class="modal-box" style="max-width:450px;">
+    <div class="modal-title">➕ إضافة محضر جديد</div>
+    
+    <label class="modal-label">📄 نوع المحضر</label>
+    <select id="prType" style="font-weight:bold;font-size:14px;">
+      <option value="control">1. محضر إجتماع إختيار أعضاء كنترول</option>
+      <option value="envelopes">2. محضر فتح مظاريف الامتحانات</option>
+      <option value="supervision">3. كشف الإشراف اليومي على الاختبارات</option>
+    </select>
+
+    <label class="modal-label">📅 التاريخ</label>
+    <input type="date" id="prDate" />
+
+    <label class="modal-label">⏰ الساعة</label>
+    <input type="text" id="prTime" placeholder="مثال: 7:30 ص" />
+
+    <div class="flex" style="margin-top:14px;gap:8px;">
+      <button class="btn btn-outline flex-1" onclick="closePaperRecordModal()">❌ إلغاء</button>
+      <button class="btn btn-success flex-1" onclick="savePaperRecord()">💾 حفظ</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════ MODALS ═══════════════ -->
@@ -2591,6 +2628,7 @@ function showPage(id) {
   if (id === 'page-exams') initExamsPage();
   
   if (id === 'page-exam-absence') { initAbsencePage(); }
+if (id === 'page-paper-records') { initPaperRecordsPage(); }
 if (id === 'page-exam-schedule') { initExamsPage(); renderExamScheduleTable(); }
   if (id === 'page-certificate') updateCertOptions();
   if (id === 'page-certificate-print') { loadCPData(); const tplSel = document.getElementById('certTemplateSelect'); if (tplSel) tplSel.value = currentTemplate; updateTemplateStatus(); updateTplBadges(); updateCPStudents(); renderCPCanvas(); renderCPFieldsList(); }
@@ -3226,7 +3264,25 @@ function printAnalytics() {
 <meta charset="UTF-8">
 <title>التحليلات - ${year}</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
-<style>${printCSS}</style>
+<style>${printCSS}
+/* ═══ المحاضر الورقية ═══ */
+.paper-record-card {
+background: #16213a;
+border: 1.5px solid #2a3a58;
+border-radius: 12px;
+padding: 14px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 8px;
+}
+.paper-record-info .title { color: #4a9eff; font-weight: bold; font-size: 14px; margin-bottom: 4px;}
+.paper-record-info .details { color: #c8d4e8; font-size: 12px; }
+.paper-record-actions { display: flex; gap: 6px; }
+body.light-mode .paper-record-card { background: #fff; border-color: #d4dde8; }
+body.light-mode .paper-record-info .title { color: #1a4b7a; }
+body.light-mode .paper-record-info .details { color: #5a6b85; }
+</style>
 </head>
 <body>
 <div class="toolbar">
@@ -9967,6 +10023,239 @@ function deleteAbsenceRecord(id) {
   saveDataSync();
   renderAbsenceList();
   showToast('🗑️ تم حذف الغياب');
+}
+// ═══════════════════════════════════════════════════════════
+// 📄 قسم المحاضر الورقية
+// ═══════════════════════════════════════════════════════════
+if (!appData.paperRecords) appData.paperRecords = [];
+
+function initPaperRecordsPage() {
+  renderPaperRecordsList();
+}
+
+function renderPaperRecordsList() {
+  const year = document.getElementById('examsYearSelect').value;
+  const semester = currentExamSemester;
+  const container = document.getElementById('paperRecordsList');
+  
+  const records = (appData.paperRecords || []).filter(r =>
+    String(r.year) === String(year) && String(r.semester) === String(semester)
+  ).sort((a, b) => b.id - a.id);
+  
+  if (records.length === 0) {
+    container.innerHTML = '<p style="text-align:center;color:#5a6b85;padding:30px;">لا توجد محاضر محفوظة لهذا الفصل الدراسي</p>';
+    return;
+  }
+  
+  const typeNames = {
+    'control': 'محضر إختيار أعضاء كنترول',
+    'envelopes': 'محضر فتح مظاريف الامتحانات',
+    'supervision': 'كشف الإشراف اليومي'
+  };
+  
+  container.innerHTML = records.map(r => `
+    <div class="paper-record-card">
+      <div class="paper-record-info">
+        <div class="title">${typeNames[r.type]}</div>
+        <div class="details">📅 ${r.date} | ⏰ ${r.time}</div>
+      </div>
+      <div class="paper-record-actions">
+        <button class="hall-action-btn edit" onclick="printPaperRecord(${r.id})" title="طباعة">🖨️</button>
+        <button class="hall-action-btn delete" onclick="deletePaperRecord(${r.id})" title="حذف">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openPaperRecordModal() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('prDate').value = today;
+  document.getElementById('prTime').value = '';
+  document.getElementById('prType').value = 'control';
+  document.getElementById('addPaperRecordModal').classList.add('show');
+}
+
+function closePaperRecordModal() {
+  document.getElementById('addPaperRecordModal').classList.remove('show');
+}
+
+function savePaperRecord() {
+  const type = document.getElementById('prType').value;
+  const date = document.getElementById('prDate').value;
+  const time = document.getElementById('prTime').value.trim();
+  
+  if (!date || !time) { showToast('⚠️ أدخل التاريخ والوقت', true); return; }
+  
+  const year = document.getElementById('examsYearSelect').value;
+  const semester = currentExamSemester;
+  
+  appData.paperRecords.push({
+    id: Date.now(),
+    type: type,
+    date: date,
+    time: time,
+    year: year,
+    semester: semester
+  });
+  
+  saveDataSync();
+  closePaperRecordModal();
+  renderPaperRecordsList();
+  showToast('✅ تم حفظ المحضر بنجاح');
+}
+
+function deletePaperRecord(id) {
+  if (!confirm('حذف هذا المحضر نهائياً؟')) return;
+  appData.paperRecords = appData.paperRecords.filter(r => r.id !== id);
+  saveDataSync();
+  renderPaperRecordsList();
+  showToast('🗑️ تم الحذف');
+}
+
+// ═══════════════════════════════════════════════════════════
+// 🖨️ طباعة النماذج الثلاثة
+// ═══════════════════════════════════════════════════════════
+function printPaperRecord(id) {
+  const record = appData.paperRecords.find(r => r.id === id);
+  if (!record) return;
+  
+  const s = appData.schoolSettings || getDefaultSettings();
+  const dateObj = new Date(record.date + 'T00:00:00');
+  const dayName = dateObj.toLocaleDateString('ar-EG', { weekday: 'long' });
+  
+  // تنسيق التاريخ للطباعة (YYYY-MM-DD)
+  const formattedDate = record.date;
+  
+  let contentHtml = '';
+  
+  // الترويسة الموحدة
+  const headerHtml = `
+    <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:1.5px solid #000;padding-bottom:10px;margin-bottom:15px;">
+      <div style="text-align:right;font-size:11px;font-weight:bold;line-height:1.5;width:30%;">
+        <div>الجمهورية اليمنية</div>
+        <div>وزارة التربية والتعليم</div>
+        <div>مكتب التربية والتعليم /</div>
+        <div>إدارة التربية والتعليم /</div>
+        <div>مدرسة: ${s.name || ''}</div>
+      </div>
+      <div style="text-align:center;width:40%;">
+        <div style="font-family:'Traditional Arabic',serif;font-size:14px;font-weight:bold;">بسم الله الرحمن الرحيم</div>
+        ${getEagleLogo(80)}
+      </div>
+      <div style="text-align:left;font-size:11px;font-weight:bold;line-height:1.5;width:30%;">
+        <div>اليوم: ${dayName}</div>
+        <div>التاريخ: ${formattedDate}</div>
+        <div>الموافق: ${record.time}</div>
+        <div>المرفقات:</div>
+      </div>
+    </div>
+  `;
+  
+  if (record.type === 'control') {
+    contentHtml = `
+      ${headerHtml}
+      <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:15px;text-decoration:underline;">
+        محضر إجتماع إختيار أعضاء كنترول إختبارات نهاية الفصل الدراسي ${record.semester === '1' ? 'الأول' : 'الثاني'}<br>
+        من العام الدراسي ${record.year}/${parseInt(record.year)+1}م
+      </div>
+      <div style="font-size:13px;line-height:1.8;text-align:justify;margin-bottom:20px;">
+        بعد دعوة هيئة التدريس في المدرسة لعقد الاجتماع الخاص باختبارات نهاية الفصل الدراسي ${record.semester === '1' ? 'الأول' : 'الثاني'} من العام الدراسي الحالي ${record.year}/${parseInt(record.year)+1}م والذي وجهها مدير المدرسة في يوم ${dayName} الموافق ${formattedDate} من صباح يوم ${dayName} الموافق ${formattedDate} وترأس الاجتماع مدير المدرسة وذلك بحضور الموقعين أدناه وفي الاجتماع ناقش الجميع الموضوعات التالية:
+        <br><br>
+        1- تحديد موعد نهاية اختبارات الفصل الدراسي ${record.semester === '1' ? 'الأول' : 'الثاني'} من العام الدراسي ${record.year}/${parseInt(record.year)+1}م وحسب التعميم الوزاري.
+        <br>
+        2- إختيار لجنة الكنترول.
+        <br>
+        3- تحديد آخر موعد لتسليم نماذج الاختبارات من مدرسي المواد الدراسية.
+        <br><br>
+        انتهى الاجتماع بحضور الموقعين أدناه:-
+      </div>
+      <table style="width:100%;border-collapse:collapse;text-align:center;font-size:13px;margin-bottom:30px;">
+        <thead>
+          <tr>
+            <th style="border:1px solid #000;padding:8px;width:5%;background:#f0f0f0;">م</th>
+            <th style="border:1px solid #000;padding:8px;width:40%;background:#f0f0f0;">الاسم</th>
+            <th style="border:1px solid #000;padding:8px;width:40%;background:#f0f0f0;">التوقيع</th>
+            <th style="border:1px solid #000;padding:8px;width:40%;background:#f0f0f0;">الاسم</th>
+            <th style="border:1px solid #000;padding:8px;width:15%;background:#f0f0f0;">التوقيع</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Array(10).fill(0).map((_, i) => `<tr><td style="border:1px solid #000;padding:8px;">${i+1}</td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:bold;margin-top:40px;text-align:center;">
+        <div>يعتمد: مدير مدرسة<br><br><br>التوقيع: ................<br>الختم</div>
+      </div>
+    `;
+  }
+  else if (record.type === 'envelopes') {
+    contentHtml = `
+      ${headerHtml}
+      <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:20px;text-decoration:underline;">
+        محضر فتح مظاريف في إختبارات نهاية الفصل الدراسي ${record.semester === '1' ? 'الأول' : 'الثاني'} للعام الدراسي ${record.year}/${parseInt(record.year)+1}م
+      </div>
+      <div style="font-size:14px;line-height:2;text-align:justify;">
+        في تمام الساعة ${record.time} من يوم ${dayName} الموافق ${formattedDate} أحضر رئيس الكنترول أوراق الامتحان الخاصة بمادة: ( ................................................. ) للصفوف الدراسية: ( ................................................. ) وذلك داخل .................... مظاريف مغلقة، ووجدناها سليمة، ثم فتحت الظروف وأمنا وتأكدنا من اسم المادة ومطابقتها للجدول وأن عدها كاف لعدد الطلاب وهذا إقرار من بذلك.
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:60px;">
+        <div style="text-align:center;font-size:14px;font-weight:bold;">
+          يعتمد<br><br><br>
+          مدير مدرسة<br>
+          ....................
+        </div>
+        <div style="text-align:center;font-size:14px;font-weight:bold;width:50%;">
+          أعضاء الكنترول<br><br><br>
+          1- ....................................<br><br>
+          2- ....................................<br><br>
+          3- ....................................
+        </div>
+      </div>
+    `;
+  }
+  else if (record.type === 'supervision') {
+    contentHtml = `
+      ${headerHtml}
+      <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:15px;text-decoration:underline;">
+        كشف الإشراف اليومي على إختبارات نهاية الفصل الدراسي ${record.semester === '1' ? 'الأول' : 'الثاني'} من العام الدراسي ${record.year}/${parseInt(record.year)+1}م
+      </div>
+      <table style="width:100%;border-collapse:collapse;text-align:center;font-size:13px;margin-bottom:30px;">
+        <thead>
+          <tr>
+            <th style="border:1px solid #000;padding:8px;width:5%;background:#f0f0f0;">م</th>
+            <th style="border:1px solid #000;padding:8px;width:35%;background:#f0f0f0;">الاسم</th>
+            <th style="border:1px solid #000;padding:8px;width:25%;background:#f0f0f0;">العمل</th>
+            <th style="border:1px solid #000;padding:8px;width:15%;background:#f0f0f0;">رقم القاعة</th>
+            <th colspan="2" style="border:1px solid #000;padding:8px;background:#f0f0f0;">التوقيع</th>
+          </tr>
+          <tr>
+            <th style="border:1px solid #000;padding:4px;"></th>
+            <th style="border:1px solid #000;padding:4px;"></th>
+            <th style="border:1px solid #000;padding:4px;"></th>
+            <th style="border:1px solid #000;padding:4px;"></th>
+            <th style="border:1px solid #000;padding:4px;width:10%;font-size:11px;">حضور</th>
+            <th style="border:1px solid #000;padding:4px;width:10%;font-size:11px;">إنصراف</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Array(15).fill(0).map((_, i) => `<tr><td style="border:1px solid #000;padding:8px;">${i+1}</td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td><td style="border:1px solid #000;padding:8px;"></td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:bold;margin-top:30px;text-align:center;">
+        <div>يعتمد: مدير مدرسة<br><br><br>التوقيع: ................<br>الختم</div>
+      </div>
+    `;
+  }
+  
+  let html = '<html dir="rtl"><head><meta charset="UTF-8"><title>طباعة محضر</title><style>';
+  html += 'body{font-family:"Cairo",sans-serif;padding:15px;background:#fff;color:#000;}';
+  html += '@media print{@page{size:A4 portrait;margin:1cm;}}';
+  html += '</style></head><body>';
+  html += contentHtml;
+  html += '<script>window.onload=function(){window.print();}<\/script></body></html>';
+  
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
 }
 
 // ═══════════════════════════════════════════════════════════
